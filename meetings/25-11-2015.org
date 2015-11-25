@@ -1,0 +1,56 @@
+#+TITLE: Meeting 26-11-2015
+#+AUTHOR: 
+#+DATE:
+#+OPTIONS: toc:nil
+#+OPTIONS: ^:nil
+
+* Convolutional networks
+
+** Repository:
+- https://github.com/tudelft/deepdrone
+
+* Textons
+
+** Repositories:
+- https://github.com/tudelft/draug
+- https://github.com/tudelft/treXton
+
+** Visualizer
+
+- Visualizes texton predictions, filtered texton predictions, and SIFT
+  predictions
+- Additionally, it shows the pictures during flight and the texton histogram
+
+**  Ground truth labeler using SIFT
+
+- Slow but accurate. Creates a .csv file with x, y coordinates
+- Can be used for testing different approaches (fast_test.py) --
+  calculates difference between texton predictions and SIFT
+- Could be used also used for training (semi-supervised learning):
+  Learning with SIFT (and draug), predicting with textons.
+
+
+** Derotate image based on IMU data (WiFi with libardrone)
+- Not tested with treXton yet
+
+** Other improvements
+- Visualizer can be used live using a webcam
+- Added a Kalman filter
+- Training based on draug / based on ground truth labeler
+- Different classifiers (random forest regression, nearest neighbors,
+  gradient boosting) and combinations of different classifiers
+- Added tfidf and global standardization to treXton
+
+
+** Datasets:
+- Cyberzoo (ground truth: SIFT)
+- Playing Mat (ground truth: OptiTrack)
+
+* TODO
+-  Clean up code
+-  Add global configuration file
+-  Test treXton with derotator
+-  Hyperparameter optimization (for example, number of decisions trees
+   or number of textons) and choice of classifiers. Automate that using fast_test.py
+-  Add color to textons (see paper: /Color Textons for Texture
+   Recognition/)
