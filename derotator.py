@@ -5,82 +5,135 @@ import cv2
 import numpy as np
 from scipy import ndimage
 import eulerangles
+import matplotlib.pyplot as plt
+import libardrone
 
-def rotate_rod(pitch, roll, yaw):
+def rotate_rod(img, alpha, beta, gamma, h, w):
+
+    # alpha: pitch
+    # beta: roll
+    # gamma: yaw
+
+    f = 1000
+
+    dx = 0
+    dy = h / 2
+    dz = 1000
+    
+    # Convert degrees to radians
+    alpha = np.deg2rad(alpha)
+    beta = np.deg2rad(beta)
+    gamma = np.deg2rad(gamma)
     
     # Projection 2D -> 3D
-    Mat_A1 = np.matrix(
+    A1 = np.matrix(
         [[1, 0, -w / 2],
          [0, 1, -h / 2],
          [0, 0, 0],
          [0, 0, 1]])
 
+    RX = np.matrix(
+        [[1,             0,               0, 0],
+        [0,  np.cos(alpha), - np.sin(alpha), 0],
+        [0, np.sin(alpha),    np.cos(alpha), 0],
+        [0,             0,             0,    1]])
+    
 
-    Mat_R = np.matrix(
+    RY = np.matrix(
         [[np.cos(beta), 0, - np.sin(beta), 0],
-         0, ])
+        [0,            1,              0, 0],
+        [np.sin(beta), 0, np.cos(beta), 0],
+        [0,             0,             0, 1]])
 
 
+    RZ = np.matrix(
+        [[np.cos(gamma), - np.sin(gamma), 0, 0],
+        [np.sin(gamma),    np.cos(gamma), 0, 0],
+        [0,                            0, 1, 0],
+        [0,                            0, 0, 1]])
 
-def rotateImage(image, angle):
-    image_center = tuple(np.array(image.shape) / 2)
-    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-    result = cv2.warpAffine(image, rot_mat, image.shape, flags=cv2.INTER_LINEAR)
+    # Composed matrix
+    R = RX * RY * RZ
+
+    # Translation matrix
+    T = np.matrix([[1, 0, 0, dx],
+                   [0, 1, 0, dy],
+                   [0, 0, 1, dz],
+                   [0, 0, 0,  1]])
+
+    # Translation vector
+    tvec = np.array([[dx], [dy], [dz], [1]])
+
+    tvec = -R * tvec
+
+    T_new = np.matrix([[1, 0, 0, tvec[0]],
+                       [0, 1, 0, tvec[1]],
+                       [0, 0, 1, tvec[2]],
+                       [0, 0, 0,      1]])
+
+    # 3D -> 2D matrix
+    A2 = np.matrix(
+              [[f, 0, w/2, 0],
+              [0,  f, h/2, 0],
+              [0,  0,   1, 0]])
+
+    trans = A2 * (T_new * (R * A1))
+
+    result = cv2.warpPerspective(img, trans, (h * 2, w * 2))
+
     return result
 
-def callback(data, (rot_x, rot_y, rot_z)):
-    rot_x.value = data.rotX
-    rot_y.value = data.rotY
-    rot_z.value = data.rotZ
 
-def listener(rot_x, rot_y, rot_z):
+def derotator(rot_x, rot_y, rot_z):
+    cap = cv2.VideoCapture(0)
 
-    rospy.init_node('listener', anonymous=True)
+    startvideo = True
+    video_waiting = False
+    use_drone_cam = False
 
-    rospy.Subscriber('/ardrone/navdata', Navdata, callback, callback_args=(rot_x, rot_y, rot_z))
-
-    rospy.spin()
-
-def slow_printer(rot_x, rot_y, rot_z):
-    cap = cv2.VideoCapture(1)
-
+    drone = libardrone.ARDrone(is_ar_drone_2=True)
+    drone.set_camera_view(False)
+    
     while True:
 
-        ret, frame = cap.read()
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        h, w = frame.shape
+        if use_drone_cam:
+            try:
+                cv2.imshow("Drone camera", cv2.cvtColor(drone.get_image(), cv2.COLOR_BGR2RGB))
+                cv2.waitKey(1)
+            except:
+                if not video_waiting:
+                    print("Video will display when ready")
+                    video_waiting = True
+                    pass
 
-        src = np.array([rot_z.value, rot_x.value, rot_y.value])
+        else:
+            ret, frame = cap.read()
 
-        euler_m = eulerangles.euler2mat(rot_z.value, rot_x.value, rot_y.value)
+            color = True
 
-        rod_m, _ = cv2.Rodrigues(src)
-        #print(dst)
+            if color:
+                h, w, c = frame.shape
+            else:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                h, w = frame.shape
 
-        print(rot_z.value)
+            nav = drone.get_navdata()
+            beta = nav[0]['phi']
+            alpha = nav[0]['theta']
+            gamma = nav[0]['psi']
+            
+            src = np.array([rot_z.value, rot_x.value, rot_y.value])
 
-        M = np.dot(rod_m, euler_m)
+            derotated_frame = rotate_rod(frame, - alpha, - beta, gamma, h, w)
 
-        print(M)
-
-        new = cv2.warpPerspective(frame, rod_m, (h, w))
-        #new = rotateImage(frame, rot_z.value)
-        
-        cv2.imshow("Frame", new)
-        cv2.waitKey(1)
+            cv2.imshow("Derotated Image", derotated_frame)
+            cv2.waitKey(1)
 
 
 if __name__ == "__main__":
 
-    rot_x = Value('d', 0)
-    rot_y = Value('d', 0)
-    rot_z = Value('d', 0)
-
-    p1 = Process(target=listener, args=(rot_x, rot_y, rot_z))
-    p1.start()
     p2 = Process(target=slow_printer, args=(rot_x, rot_y, rot_z))
     p2.start()
-#    p1.join()
-#    p2.join()
+    p2.join()
 
     
