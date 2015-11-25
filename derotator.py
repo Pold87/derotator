@@ -8,7 +8,7 @@ import eulerangles
 import matplotlib.pyplot as plt
 import libardrone
 
-def rotate_rod(img, alpha, beta, gamma, h, w):
+def dewarp_img(img, alpha, beta, gamma, h, w):
 
     # alpha: pitch
     # beta: roll
@@ -84,7 +84,7 @@ def rotate_rod(img, alpha, beta, gamma, h, w):
     return result
 
 
-def derotator(rot_x, rot_y, rot_z):
+def derotator():
     cap = cv2.VideoCapture(0)
 
     startvideo = True
@@ -121,10 +121,8 @@ def derotator(rot_x, rot_y, rot_z):
             beta = nav[0]['phi']
             alpha = nav[0]['theta']
             gamma = nav[0]['psi']
-            
-            src = np.array([rot_z.value, rot_x.value, rot_y.value])
 
-            derotated_frame = rotate_rod(frame, - alpha, - beta, gamma, h, w)
+            derotated_frame = dewarp_img(frame, alpha, beta, gamma, h, w)
 
             cv2.imshow("Derotated Image", derotated_frame)
             cv2.waitKey(1)
@@ -132,8 +130,8 @@ def derotator(rot_x, rot_y, rot_z):
 
 if __name__ == "__main__":
 
-    p2 = Process(target=slow_printer, args=(rot_x, rot_y, rot_z))
-    p2.start()
-    p2.join()
+    p1 = Process(target=derotator)
+    p1.start()
+    p1.join()
 
     
